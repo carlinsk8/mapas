@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'package:map_app/blocs/blocs.dart';
 
 class GpsAccessScreen extends StatelessWidget {
@@ -42,7 +44,8 @@ class _AccesButton extends StatelessWidget {
             child: const Text('Solicitar acceso',
                 style: TextStyle(color: Colors.white)),
             onPressed: () {
-              //TODO por hacer
+              final gpsBloc = BlocProvider.of<GpsBloc>(context);
+              gpsBloc.askGpsAccess();
             })
       ],
     );

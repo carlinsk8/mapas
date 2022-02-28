@@ -1,11 +1,15 @@
+import 'dart:async';
+
 import 'package:bloc/bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 part 'gps_event.dart';
 part 'gps_state.dart';
 
 class GpsBloc extends Bloc<GpsEvent, GpsState> {
+  StreamSubscription? gpsServiceSubcripcion;
   GpsBloc()
       : super(const GpsState(
             isGpsEnabled: false, isGpsPermissionGranted: false)) {
@@ -21,22 +25,55 @@ class GpsBloc extends Bloc<GpsEvent, GpsState> {
   }
 
   Future<void> _init() async {
-    final isEnable = await _checkGpsStatus();
-    print('isEnable: $isEnable');
+    final gpsInitStatus = await Future.wait([
+      _checkGpsStatus(),
+      _isPermissionGranted(),
+    ]);
+
+    add(GpsAndPermissionEvent(
+      isGpsEnable: gpsInitStatus[0],
+      isGpsPermissionGranted: gpsInitStatus[1],
+    ));
+  }
+
+  Future<bool> _isPermissionGranted() async {
+    final isGranted = await Permission.location.isGranted;
+    return isGranted;
   }
 
   Future<bool> _checkGpsStatus() async {
     final isEnable = await Geolocator.isLocationServiceEnabled();
-    Geolocator.getServiceStatusStream().listen((event) {
+    gpsServiceSubcripcion = Geolocator.getServiceStatusStream().listen((event) {
       final isEnabled = event.index == 1 ? true : false;
-      print('services status: $isEnabled');
+      add(GpsAndPermissionEvent(
+        isGpsEnable: isEnabled,
+        isGpsPermissionGranted: state.isGpsPermissionGranted,
+      ));
     });
     return isEnable;
   }
 
+  Future<void> askGpsAccess() async {
+    final status = await Permission.location.request();
+
+    switch (status) {
+      case PermissionStatus.granted:
+        add(GpsAndPermissionEvent(
+            isGpsEnable: state.isGpsEnabled, isGpsPermissionGranted: true));
+        break;
+      case PermissionStatus.denied:
+      case PermissionStatus.restricted:
+      case PermissionStatus.limited:
+      case PermissionStatus.permanentlyDenied:
+        add(GpsAndPermissionEvent(
+            isGpsEnable: state.isGpsEnabled, isGpsPermissionGranted: false));
+        openAppSettings();
+    }
+  }
+
   @override
   Future<void> close() {
-    // TODO: Limpiar ServiceStatusStream
+    gpsServiceSubcripcion?.cancel();
     return super.close();
   }
 }
